@@ -1,0 +1,56 @@
+# Owned by this repo, not by the platform. The release workflow fills in the
+# variables and applies it. The platform owns the namespace, the Service (which
+# selects `app: ${APP_NAME}`) and the route, and the namespace enforces Pod
+# Security "restricted", so this manifest has to stay within it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${APP_NAME}
+  labels:
+    app: ${APP_NAME}
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ${APP_NAME}
+  template:
+    metadata:
+      labels:
+        app: ${APP_NAME}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ${IMAGE}
+          env:
+            - name: APP_NAME
+              value: ${APP_NAME}
+            - name: APP_VERSION
+              value: ${APP_VERSION}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

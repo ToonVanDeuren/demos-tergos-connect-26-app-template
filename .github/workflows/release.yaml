@@ -1,0 +1,57 @@
+# Publishing a release builds the image and deploys it. There is no secret in
+# this repo: the platform creates the `production` environment, an identity that
+# trusts it, its roles on the registry and on this app's namespace, and the
+# DEPLOY_CONFIG variable.
+name: release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP_NAME: ${{ github.event.repository.name }}
+      APP_VERSION: ${{ github.event.release.tag_name }}
+      ACR_NAME: ${{ fromJSON(vars.DEPLOY_CONFIG).ACR_NAME }}
+      IMAGE: ${{ fromJSON(vars.DEPLOY_CONFIG).ACR_NAME }}.azurecr.io/${{ github.event.repository.name }}:${{ github.event.release.tag_name }}
+      AZURE_CLIENT_ID: ${{ fromJSON(vars.DEPLOY_CONFIG).AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ fromJSON(vars.DEPLOY_CONFIG).AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ fromJSON(vars.DEPLOY_CONFIG).AZURE_SUBSCRIPTION_ID }}
+      AKS_RESOURCE_GROUP: ${{ fromJSON(vars.DEPLOY_CONFIG).AKS_RESOURCE_GROUP }}
+      AKS_CLUSTER_NAME: ${{ fromJSON(vars.DEPLOY_CONFIG).AKS_CLUSTER_NAME }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Log in to the registry
+        run: az acr login --name "$ACR_NAME"
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - uses: azure/use-kubelogin@v1.3
+
+      - uses: azure/aks-set-context@v5
+        with:
+          resource-group: ${{ env.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ env.AKS_CLUSTER_NAME }}
+          use-kubelogin: "true"
+
+      - name: Deploy
+        run: |
+          envsubst < deploy/deployment.yaml | kubectl apply -n "$APP_NAME" -f -
+          kubectl rollout status "deployment/$APP_NAME" -n "$APP_NAME" --timeout=5m
