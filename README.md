@@ -1,12 +1,15 @@
-# demos-tergos-connect-26-app-template
+# An app on the platform
 
-Template for applications on the demo platform. Do not use it directly: request
-an `App` and the platform creates a repository from this template.
+The platform created this repository when the app was requested. Publish a release to
+deploy it: **Releases > Draft a new release**, pick a tag such as `v0.1.0`, **Publish**.
+The **Actions** tab shows the run, and the `production` environment links to the app.
 
-Publish a release to build the image and deploy it:
+| Yours | The platform's |
+| --- | --- |
+| the code (`main.go`) | the `production` environment and `DEPLOY_CONFIG` |
+| the Deployment (`deploy/deployment.yaml`) | the identity the pipeline signs in as |
+| | the namespace, the Service and the route |
 
-```bash
-gh release create v0.1.0 --generate-notes
-```
-
-The application lives in `main.go`, its Deployment in `deploy/deployment.yaml`.
+There are no secrets in this repository. The pipeline gets a short-lived token because
+it runs in this repository's `production` environment, and that token can only push
+images and deploy to this app's namespace.
