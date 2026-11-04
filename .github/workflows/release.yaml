@@ -44,6 +44,9 @@ jobs:
           tags: ${{ env.IMAGE }}
 
       - uses: azure/use-kubelogin@v1.3
+        with:
+          # pinned: "latest" looks the version up through the GitHub API, which needs a token
+          kubelogin-version: v0.2.22
 
       - uses: azure/aks-set-context@v5
         with:
