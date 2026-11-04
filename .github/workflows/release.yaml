@@ -3,6 +3,7 @@
 # trusts it, its roles on the registry and on this app's namespace, and the
 # DEPLOY_CONFIG variable.
 name: release
+run-name: Deploy ${{ github.event.release.tag_name }}
 
 on:
   release:
@@ -10,8 +11,11 @@ on:
 
 jobs:
   deploy:
+    name: Build and deploy
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: production
+      url: ${{ fromJSON(vars.DEPLOY_CONFIG).APP_URL }}
     permissions:
       contents: read
       id-token: write
@@ -26,29 +30,34 @@ jobs:
       AKS_RESOURCE_GROUP: ${{ fromJSON(vars.DEPLOY_CONFIG).AKS_RESOURCE_GROUP }}
       AKS_CLUSTER_NAME: ${{ fromJSON(vars.DEPLOY_CONFIG).AKS_CLUSTER_NAME }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Check out the code
+        uses: actions/checkout@v7
 
-      - uses: azure/login@v3
+      - name: Sign in to Azure (no secret, a token for this environment)
+        uses: azure/login@v3
         with:
           client-id: ${{ env.AZURE_CLIENT_ID }}
           tenant-id: ${{ env.AZURE_TENANT_ID }}
           subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Log in to the registry
+      - name: Sign in to the registry
         run: az acr login --name "$ACR_NAME"
 
-      - uses: docker/build-push-action@v7
+      - name: Build and push the image
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           tags: ${{ env.IMAGE }}
 
-      - uses: azure/use-kubelogin@v1.3
+      - name: Set up kubelogin
+        uses: azure/use-kubelogin@v1.3
         with:
           # pinned: "latest" looks the version up through the GitHub API, which needs a token
           kubelogin-version: v0.2.22
 
-      - uses: azure/aks-set-context@v5
+      - name: Connect to the cluster
+        uses: azure/aks-set-context@v5
         with:
           resource-group: ${{ env.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ env.AKS_CLUSTER_NAME }}
